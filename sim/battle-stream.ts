@@ -10,6 +10,7 @@
  */
 
 import {Streams, Utils} from '../lib';
+import {Teams} from './teams';
 import {Battle} from './battle';
 
 /**
@@ -62,7 +63,7 @@ export class BattleStream extends Streams.ObjectReadWriteStream<string> {
 		} else {
 			try {
 				this._writeLines(chunk);
-			} catch (err) {
+			} catch (err: any) {
 				this.pushError(err, true);
 				return;
 			}
@@ -201,7 +202,7 @@ export class BattleStream extends Streams.ObjectReadWriteStream<string> {
 					result = result.replace(/\n/g, '\n||');
 					battle.add('', '<<< ' + result);
 				}
-			} catch (e) {
+			} catch (e: any) {
 				battle.add('', '<<< error: ' + e.message);
 			}
 			break;
@@ -215,7 +216,7 @@ export class BattleStream extends Streams.ObjectReadWriteStream<string> {
 				throw new Error(`Team requested for slot ${message}, but that slot does not exist.`);
 			}
 			const side = this.battle!.sides[slotNum];
-			const team = Dex.packTeam(side.team);
+			const team = Teams.pack(side.team);
 			this.push(`requesteddata\n${team}`);
 			break;
 		case 'version':

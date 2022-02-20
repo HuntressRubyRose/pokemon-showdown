@@ -36,7 +36,7 @@ export const Scripts: ModdedBattleScriptsData = {
 		// Modded for Mega Rayquaza
 		canMegaEvo(pokemon) {
 			const species = pokemon.baseSpecies;
-			const altForme = species.otherFormes && this.dex.getSpecies(species.otherFormes[0]);
+			const altForme = species.otherFormes && this.dex.species.get(species.otherFormes[0]);
 			const item = pokemon.getItem();
 			// Mega Rayquaza
 			if (altForme?.isMega && altForme?.requiredMove &&
@@ -70,10 +70,10 @@ export const Scripts: ModdedBattleScriptsData = {
 				if (!moveSlot.disabled) {
 					mustStruggle = false;
 				}
-				const move = this.dex.getMove(moveSlot.move);
+				const move = this.dex.moves.get(moveSlot.move);
 				let zMoveName = this.getZMove(move, pokemon, true) || '';
 				if (zMoveName) {
-					const zMove = this.dex.getMove(zMoveName);
+					const zMove = this.dex.moves.get(zMoveName);
 					if (!zMove.isZ && zMove.category === 'Status') zMoveName = "Z-" + zMoveName;
 					zMoves.push({move: zMoveName, target: zMove.target});
 				} else {
@@ -172,7 +172,7 @@ export const Scripts: ModdedBattleScriptsData = {
 						return;
 					}
 				} else {
-					sourceEffect = this.dex.getEffect('lockedmove');
+					sourceEffect = this.dex.conditions.get('lockedmove');
 				}
 				pokemon.moveUsed(move, targetLoc);
 			}
@@ -183,7 +183,7 @@ export const Scripts: ModdedBattleScriptsData = {
 
 			if (zMove) {
 				if (pokemon.illusion) {
-					this.battle.singleEvent('End', this.dex.getAbility('Illusion'), pokemon.abilityData, pokemon);
+					this.battle.singleEvent('End', this.dex.abilities.get('Illusion'), pokemon.abilityState, pokemon);
 				}
 				this.battle.add('-zpower', pokemon);
 				// In SSB Z-Moves are limited to 1 per pokemon.
@@ -216,7 +216,7 @@ export const Scripts: ModdedBattleScriptsData = {
 					this.battle.add('-activate', dancer, 'ability: Dancer');
 					const dancersTarget = !target!.isAlly(dancer) && pokemon.isAlly(dancer) ? target! : pokemon;
 					const dancersTargetLoc = dancer.getLocOf(dancersTarget);
-					this.runMove(move.id, dancer, dancersTargetLoc, this.dex.getAbility('dancer'), undefined, true);
+					this.runMove(move.id, dancer, dancersTargetLoc, this.dex.abilities.get('dancer'), undefined, true);
 				}
 			}
 			if (noLock && pokemon.volatiles['lockedmove']) delete pokemon.volatiles['lockedmove'];
@@ -312,7 +312,7 @@ export const Scripts: ModdedBattleScriptsData = {
 
 			let movename = move.name;
 			if (move.id === 'hiddenpower') movename = 'Hidden Power';
-			if (sourceEffect) attrs += '|[from]' + this.dex.getEffect(sourceEffect);
+			if (sourceEffect) attrs += '|[from]' + this.dex.conditions.get(sourceEffect);
 			if (zMove && move.isZ === true) {
 				attrs = '|[anim]' + movename + attrs;
 				movename = 'Z-' + movename;
@@ -444,7 +444,7 @@ export const Scripts: ModdedBattleScriptsData = {
 			let nullDamage = true;
 			let moveDamage: (number | boolean | undefined)[];
 			// There is no need to recursively check the ´sleepUsable´ flag as Sleep Talk can only be used while asleep.
-			const isSleepUsable = move.sleepUsable || this.dex.getMove(move.sourceEffect).sleepUsable;
+			const isSleepUsable = move.sleepUsable || this.dex.moves.get(move.sourceEffect).sleepUsable;
 
 			let targetsCopy: (Pokemon | false | null)[] = targets.slice(0);
 			let hit: number;
@@ -516,7 +516,7 @@ export const Scripts: ModdedBattleScriptsData = {
 					move.totalDamage += damage[i];
 				}
 				if (move.mindBlownRecoil) {
-					this.battle.damage(Math.round(pokemon.maxhp / 2), pokemon, pokemon, this.dex.getEffect('Mind Blown'), true);
+					this.battle.damage(Math.round(pokemon.maxhp / 2), pokemon, pokemon, this.dex.conditions.get('Mind Blown'), true);
 					move.mindBlownRecoil = false;
 				}
 				this.battle.eachEvent('Update');
@@ -584,7 +584,7 @@ export const Scripts: ModdedBattleScriptsData = {
 		},
 
 		// For Spandan's custom move and Brandon's ability
-		getDamage(pokemon, target, move, suppressMessages = false) {
+		getDamage(source, target, move, suppressMessages = false) {
 			if (typeof move === 'string') move = this.dex.getActiveMove(move);
 
 			if (typeof move === 'number') {
@@ -605,25 +605,24 @@ export const Scripts: ModdedBattleScriptsData = {
 			}
 
 			if (move.ohko) return target.maxhp;
-			if (move.damageCallback) return move.damageCallback.call(this.battle, pokemon, target);
+			if (move.damageCallback) return move.damageCallback.call(this.battle, source, target);
 			if (move.damage === 'level') {
-				return pokemon.level;
+				return source.level;
 			} else if (move.damage) {
 				return move.damage;
 			}
 
 			const category = this.battle.getCategory(move);
-			const defensiveCategory = move.defensiveCategory || category;
 
 			let basePower: number | false | null = move.basePower;
 			if (move.basePowerCallback) {
-				basePower = move.basePowerCallback.call(this.battle, pokemon, target, move);
+				basePower = move.basePowerCallback.call(this.battle, source, target, move);
 			}
 			if (!basePower) return basePower === 0 ? undefined : basePower;
 			basePower = this.battle.clampIntRange(basePower, 1);
 
 			let critMult;
-			let critRatio = this.battle.runEvent('ModifyCritRatio', pokemon, target, move, move.critRatio || 0);
+			let critRatio = this.battle.runEvent('ModifyCritRatio', source, target, move, move.critRatio || 0);
 			if (this.battle.gen <= 5) {
 				critRatio = this.battle.clampIntRange(critRatio, 0, 5);
 				critMult = [0, 16, 8, 4, 3, 2];
@@ -649,47 +648,23 @@ export const Scripts: ModdedBattleScriptsData = {
 			}
 
 			// happens after crit calculation
-			basePower = this.battle.runEvent('BasePower', pokemon, target, move, basePower, true);
+			basePower = this.battle.runEvent('BasePower', source, target, move, basePower, true);
 
 			if (!basePower) return 0;
 			basePower = this.battle.clampIntRange(basePower, 1);
 
-			const level = pokemon.level;
+			const level = source.level;
 
-			const attacker = pokemon;
-			const defender = target;
-			let attackStat: StatNameExceptHP = category === 'Physical' ? 'atk' : 'spa';
-			const defenseStat: StatNameExceptHP = defensiveCategory === 'Physical' ? 'def' : 'spd';
-			if (this.battle.field.isTerrain('baneterrain')) {
-				if (attacker.getStat('atk') > attacker.getStat('spa')) {
-					attackStat = 'spa';
-				} else {
-					attackStat = 'atk';
-				}
-			}
-			if (move.useSourceDefensiveAsOffensive) {
-				attackStat = defenseStat;
-				// Body press really wants to use the def stat,
-				// so it switches stats to compensate for Wonder Room.
-				// Of course, the game thus miscalculates the boosts...
-				if ('wonderroom' in this.battle.field.pseudoWeather) {
-					if (attackStat === 'def') {
-						attackStat = 'spd';
-					} else if (attackStat === 'spd') {
-						attackStat = 'def';
-					}
-					if (attacker.boosts['def'] || attacker.boosts['spd']) {
-						this.battle.hint("Body Press uses Sp. Def boosts when Wonder Room is active.");
-					}
-				}
-			}
+			const attacker = move.overrideOffensivePokemon === 'target' ? target : source;
+			const defender = move.overrideDefensivePokemon === 'source' ? source : target;
+
+			const isPhysical = move.category === 'Physical';
+			let attackStat: StatIDExceptHP = move.overrideOffensiveStat || (isPhysical ? 'atk' : 'spa');
+			const defenseStat: StatIDExceptHP = move.overrideDefensiveStat || (isPhysical ? 'def' : 'spd');
 
 			const statTable = {atk: 'Atk', def: 'Def', spa: 'SpA', spd: 'SpD', spe: 'Spe'};
-			let attack;
-			let defense;
 
-			let atkBoosts = move.useTargetOffensive ? defender.boosts[attackStat] : attacker.boosts[attackStat];
-			if (move.id === 'imtoxicyoureslippinunder') atkBoosts = defender.boosts['spd'];
+			let atkBoosts = attacker.boosts[attackStat];
 			let defBoosts = defender.boosts[defenseStat];
 
 			let ignoreNegativeOffensive = !!move.ignoreNegativeOffensive;
@@ -711,20 +686,14 @@ export const Scripts: ModdedBattleScriptsData = {
 				defBoosts = 0;
 			}
 
-			if (move.useTargetOffensive) {
-				attack = defender.calculateStat(attackStat, atkBoosts);
-			} else if (move.id === 'imtoxicyoureslippinunder') {
-				attack = defender.calculateStat("spd", atkBoosts);
-			} else {
-				attack = attacker.calculateStat(attackStat, atkBoosts);
-			}
+			let attack = attacker.calculateStat(attackStat, atkBoosts);
+			let defense = defender.calculateStat(defenseStat, defBoosts);
 
 			attackStat = (category === 'Physical' ? 'atk' : 'spa');
-			defense = defender.calculateStat(defenseStat, defBoosts);
 
 			// Apply Stat Modifiers
-			attack = this.battle.runEvent('Modify' + statTable[attackStat], attacker, defender, move, attack);
-			defense = this.battle.runEvent('Modify' + statTable[defenseStat], defender, attacker, move, defense);
+			attack = this.battle.runEvent('Modify' + statTable[attackStat], source, target, move, attack);
+			defense = this.battle.runEvent('Modify' + statTable[defenseStat], target, source, move, defense);
 
 			if (this.battle.gen <= 4 && ['explosion', 'selfdestruct'].includes(move.id) && defenseStat === 'def') {
 				defense = this.battle.clampIntRange(Math.floor(defense / 2), 1);
@@ -736,7 +705,7 @@ export const Scripts: ModdedBattleScriptsData = {
 			const baseDamage = tr(tr(tr(tr(2 * level / 5 + 2) * basePower * attack) / defense) / 50);
 
 			// Calculate damage modifiers separately (order differs between generations)
-			return this.modifyDamage(baseDamage, pokemon, target, move, suppressMessages);
+			return this.modifyDamage(baseDamage, source, target, move, suppressMessages);
 		},
 
 		runMoveEffects(damage, targets, pokemon, move, moveData, isSecondary, isSelf) {
@@ -875,14 +844,14 @@ export const Scripts: ModdedBattleScriptsData = {
 			if (item === 'ironball') return true;
 			// If a Fire/Flying type uses Burn Up and Roost, it becomes ???/Flying-type, but it's still grounded.
 			if (!negateImmunity && this.hasType('Flying') && !('roost' in this.volatiles)) return false;
-			if (this.hasAbility('levitate') && !this.battle.suppressingAttackEvents()) return null;
+			if (this.hasAbility('levitate') && !this.battle.suppressingAbility()) return null;
 			if ('magnetrise' in this.volatiles) return false;
 			if ('telekinesis' in this.volatiles) return false;
 			return item !== 'airballoon';
 		},
 		setStatus(status, source, sourceEffect, ignoreImmunities) {
 			if (!this.hp) return false;
-			status = this.battle.dex.getEffect(status);
+			status = this.battle.dex.conditions.get(status);
 			if (this.battle.event) {
 				if (!source) source = this.battle.event.source;
 				if (!sourceEffect) sourceEffect = this.battle.effect;
@@ -912,7 +881,7 @@ export const Scripts: ModdedBattleScriptsData = {
 				}
 			}
 			const prevStatus = this.status;
-			const prevStatusData = this.statusData;
+			const prevStatusState = this.statusState;
 			if (status.id) {
 				const result: boolean = this.battle.runEvent('SetStatus', this, source, sourceEffect, status);
 				if (!result) {
@@ -922,18 +891,18 @@ export const Scripts: ModdedBattleScriptsData = {
 			}
 
 			this.status = status.id;
-			this.statusData = {id: status.id, target: this};
-			if (source) this.statusData.source = source;
-			if (status.duration) this.statusData.duration = status.duration;
+			this.statusState = {id: status.id, target: this};
+			if (source) this.statusState.source = source;
+			if (status.duration) this.statusState.duration = status.duration;
 			if (status.durationCallback) {
-				this.statusData.duration = status.durationCallback.call(this.battle, this, source, sourceEffect);
+				this.statusState.duration = status.durationCallback.call(this.battle, this, source, sourceEffect);
 			}
 
-			if (status.id && !this.battle.singleEvent('Start', status, this.statusData, this, source, sourceEffect)) {
+			if (status.id && !this.battle.singleEvent('Start', status, this.statusState, this, source, sourceEffect)) {
 				this.battle.debug('status start [' + status.id + '] interrupted');
 				// cancel the setstatus
 				this.status = prevStatus;
-				this.statusData = prevStatusData;
+				this.statusState = prevStatusState;
 				return false;
 			}
 			if (status.id && !this.battle.runEvent('AfterSetStatus', this, source, sourceEffect, status)) {
@@ -1031,7 +1000,7 @@ export const Scripts: ModdedBattleScriptsData = {
 								// unreleased hidden ability
 								continue;
 							}
-							const ability = this.dex.getAbility(abilityName);
+							const ability = this.dex.abilities.get(abilityName);
 							if (ruleTable.has('-ability:' + ability.id)) continue;
 							if (pokemon.knownType && !this.dex.getImmunity('trapped', pokemon)) continue;
 							this.singleEvent('FoeMaybeTrapPokemon', ability, {}, pokemon, source);

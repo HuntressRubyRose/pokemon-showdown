@@ -15,6 +15,11 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 		},
 		rating: 1.5,
 	},
+	baddreams: {
+		inherit: true,
+		onResidualOrder: 10,
+		onResidualSubOrder: 10,
+	},
 	blaze: {
 		onBasePowerPriority: 2,
 		onBasePower(basePower, attacker, defender, move) {
@@ -58,7 +63,7 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 		onDamagingHit(damage, target, source, move) {
 			if (damage && move.flags['contact']) {
 				if (this.randomChance(3, 10)) {
-					source.addVolatile('attract', this.effectData.target);
+					source.addVolatile('attract', this.effectState.target);
 				}
 			}
 		},
@@ -137,7 +142,7 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 			let warnBp = 1;
 			for (const target of pokemon.foes()) {
 				for (const moveSlot of target.moveSlots) {
-					const move = this.dex.getMove(moveSlot.move);
+					const move = this.dex.moves.get(moveSlot.move);
 					let bp = move.basePower;
 					if (move.ohko) bp = 160;
 					if (move.id === 'counter' || move.id === 'metalburst' || move.id === 'mirrorcoat') bp = 120;
@@ -163,6 +168,17 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 				return accuracy * 0.8;
 			}
 		},
+	},
+	hydration: {
+		onWeather(target, source, effect) {
+			if (effect.id === 'raindance' && target.status) {
+				this.add('-activate', target, 'ability: Hydration');
+				target.cureStatus();
+			}
+		},
+		name: "Hydration",
+		rating: 1.5,
+		num: 93,
 	},
 	insomnia: {
 		inherit: true,
@@ -206,6 +222,17 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 		inherit: true,
 		onTryHit() {},
 		rating: 0,
+	},
+	liquidooze: {
+		inherit: true,
+		onSourceTryHeal(damage, target, source, effect) {
+			this.debug("Heal is occurring: " + target + " <- " + source + " :: " + effect.id);
+			const canOoze = ['drain', 'leechseed'];
+			if (canOoze.includes(effect.id) && this.activeMove?.id !== 'dreameater') {
+				this.damage(damage, null, null, null, true);
+				return 0;
+			}
+		},
 	},
 	magicguard: {
 		onDamage(damage, target, source, effect) {
@@ -336,13 +363,19 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 			}
 		},
 	},
+	shedskin: {
+		inherit: true,
+		onResidualOrder: 10,
+		onResidualSubOrder: 3,
+	},
 	simple: {
 		onModifyBoost(boosts) {
-			let key: BoostName;
+			let key: BoostID;
 			for (key in boosts) {
 				boosts[key]! *= 2;
 			}
 		},
+		isBreakable: true,
 		name: "Simple",
 		rating: 4,
 		num: 86,
@@ -357,6 +390,11 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 				return accuracy * 0.8;
 			}
 		},
+	},
+	speedboost: {
+		inherit: true,
+		onResidualOrder: 10,
+		onResidualSubOrder: 3,
 	},
 	static: {
 		inherit: true,
@@ -376,7 +414,6 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 	stickyhold: {
 		inherit: true,
 		onTakeItem(item, pokemon, source) {
-			if (this.suppressingAttackEvents(pokemon)) return;
 			if ((source && source !== pokemon) || (this.activeMove && this.activeMove.id === 'knockoff')) {
 				this.add('-activate', pokemon, 'ability: Sticky Hold');
 				return false;
@@ -434,6 +471,7 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 				return this.chainModify(0.5);
 			}
 		},
+		isBreakable: true,
 		name: "Thick Fat",
 		rating: 3.5,
 		num: 47,

@@ -73,7 +73,7 @@ export class LadderStore {
 			// console.log('Ladders(' + this.formatid + ') loaded tsv: ' + JSON.stringify(this.ladder));
 			ladderCaches.set(this.formatid, (this.ladder = ladder));
 			return this.ladder;
-		} catch (err) {
+		} catch {
 			// console.log('Ladders(' + this.formatid + ') err loading tsv: ' + JSON.stringify(this.ladder));
 		}
 		ladderCaches.set(this.formatid, (this.ladder = []));
@@ -130,7 +130,7 @@ export class LadderStore {
 	 */
 	async getTop(prefix?: string) {
 		const formatid = this.formatid;
-		const name = Dex.getFormat(formatid).name;
+		const name = Dex.formats.get(formatid).name;
 		const ladder = await this.getLadder();
 		let buf = `<h3>${name} Top 100</h3>`;
 		buf += `<table>`;
@@ -272,7 +272,7 @@ export class LadderStore {
 			);
 
 			room.update();
-		} catch (e) {
+		} catch (e: any) {
 			if (!room.battle) return [p1score, null, null];
 			room.addRaw(`There was an error calculating rating changes:`);
 			room.add(e.stack);
@@ -334,9 +334,9 @@ export class LadderStore {
 	 */
 	static visualizeAll(username: string) {
 		const ratings = [];
-		for (const i in Dex.formats) {
-			if (Dex.formats[i].searchShow) {
-				ratings.push(new LadderStore(i).visualize(username));
+		for (const format of Dex.formats.all()) {
+			if (format.searchShow) {
+				ratings.push(new LadderStore(format.id).visualize(username));
 			}
 		}
 		return Promise.all(ratings);
